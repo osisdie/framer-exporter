@@ -27,6 +27,12 @@ program
     '--canonical-url <url>',
     'Override <link rel=canonical> and og:url in the export so the static site no longer advertises its Framer preview URL',
   )
+  .option(
+    '--strip-selector <selector>',
+    'Remove every element matching this CSS selector from every page (cheerio supports :has() and :contains()). Repeatable.',
+    (value: string, prev: string[] = []) => prev.concat(value),
+    [] as string[],
+  )
   .option('--user-data-dir <dir>', 'Persistent browser profile dir', './.browser-data')
   .action(async (url: string, options: Record<string, unknown>) => {
     try {
@@ -41,6 +47,7 @@ program
         keepCdn: options.keepCdn as boolean,
         userDataDir: path.resolve(options.userDataDir as string),
         canonicalUrl: options.canonicalUrl as string | undefined,
+        stripSelectors: options.stripSelector as string[] | undefined,
       });
     } catch (err) {
       logger.error({ err: (err as Error).message, stack: (err as Error).stack }, 'export-failed');

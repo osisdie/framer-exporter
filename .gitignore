@@ -9,3 +9,4 @@ output/
 .vscode/
 *.zip
 .diagnostic/
+.wrangler/

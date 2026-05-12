@@ -1,21 +1,50 @@
 {
   "name": "framer-exporter",
   "version": "0.1.0",
-  "description": "Download a published or preview Framer site and output a fully-decoupled static website.",
+  "description": "Crawl a published Framer site, decouple it from Framer's CDNs, and output a fully self-contained static website that can be served from any HTTP host.",
+  "keywords": [
+    "framer",
+    "static-site",
+    "exporter",
+    "scraper",
+    "playwright",
+    "spa-crawler",
+    "self-host",
+    "rwd",
+    "cli"
+  ],
+  "homepage": "https://github.com/osisdie/framer-exporter#readme",
+  "bugs": {
+    "url": "https://github.com/osisdie/framer-exporter/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/osisdie/framer-exporter.git"
+  },
+  "license": "MIT",
   "type": "module",
   "bin": {
     "framer-exporter": "./dist/cli.js"
   },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "tsx src/cli.ts",
     "build": "tsc",
     "start": "node dist/cli.js",
     "serve": "sirv output --port 3000 --single",
     "typecheck": "tsc --noEmit",
-    "postinstall": "playwright install chromium --with-deps || playwright install chromium"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "postinstall": "playwright install chromium --with-deps || playwright install chromium || true"
   },
   "engines": {
-    "node": ">=18.18.0"
+    "node": ">=20.6.0"
   },
   "dependencies": {
     "cheerio": "^1.0.0",
@@ -36,6 +65,7 @@
     "@types/parse-srcset": "^1.0.0",
     "@types/postcss-url": "^10.0.4",
     "tsx": "^4.19.1",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "vitest": "^2.1.4"
   }
 }

@@ -1,6 +1,8 @@
 node_modules/
 dist/
-output/
+# Anchor to repo root — without the leading slash, `output/` would also match
+# the tracked source directory `src/output/`.
+/output/
 .browser-data/
 .env
 .DS_Store

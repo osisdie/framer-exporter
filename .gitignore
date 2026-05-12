@@ -1,0 +1,11 @@
+node_modules/
+dist/
+output/
+.browser-data/
+.env
+.DS_Store
+*.log
+.idea/
+.vscode/
+*.zip
+.diagnostic/

@@ -18,6 +18,13 @@ export interface HtmlRewriteContext {
    * hosting location to search engines and social embeds.
    */
   canonicalUrl?: string;
+  /**
+   * Extra CSS selectors to .remove() from each page. Useful for hiding form
+   * widgets that aren't wired up (e.g. unconfigured FormSpark/Loops integrations
+   * that POST to dead endpoints), or any content the deployer wants stripped.
+   * Cheerio supports jQuery-style :has() and :contains() pseudo-classes.
+   */
+  stripSelectors?: string[];
 }
 
 const URL_ATTRS: Array<{ selector: string; attr: string }> = [
@@ -90,6 +97,18 @@ export async function rewriteHtml(html: string, ctx: HtmlRewriteContext): Promis
     $('link[rel="canonical"]').attr('href', ctx.canonicalUrl);
     $('meta[property="og:url"]').attr('content', ctx.canonicalUrl);
     $('meta[name="twitter:url"]').attr('content', ctx.canonicalUrl);
+  }
+
+  // Apply caller-supplied strip selectors (e.g. to hide a Subscribe form whose
+  // backend integration was never configured upstream).
+  if (ctx.stripSelectors?.length) {
+    for (const sel of ctx.stripSelectors) {
+      try {
+        $(sel).remove();
+      } catch {
+        // bad selector — skip silently rather than abort the whole rewrite
+      }
+    }
   }
 
   for (const { selector, attr } of URL_ATTRS) {

@@ -24,6 +24,8 @@ export interface ExportCommandOptions {
   userDataDir: string;
   /** If set, override the captured canonical / og:url metadata */
   canonicalUrl?: string;
+  /** Extra CSS selectors removed from every page during HTML rewrite */
+  stripSelectors?: string[];
 }
 
 export async function runExport(opts: ExportCommandOptions): Promise<void> {
@@ -86,12 +88,12 @@ export async function runExport(opts: ExportCommandOptions): Promise<void> {
 
     if (opts.keepCdn) {
       await writeAssets(outDir, store, /* rewrite */ false, new Set());
-      await writePages(outDir, crawlResult.pages, crawlResult.origin, store, /* rewrite */ false, opts.canonicalUrl);
+      await writePages(outDir, crawlResult.pages, crawlResult.origin, store, /* rewrite */ false, opts.canonicalUrl, opts.stripSelectors);
     } else {
       const hosts = collectHosts(store);
       const jsReplacements = buildJsReplacements(hosts);
       await writeAssets(outDir, store, true, hosts, jsReplacements);
-      await writePages(outDir, crawlResult.pages, crawlResult.origin, store, true, opts.canonicalUrl);
+      await writePages(outDir, crawlResult.pages, crawlResult.origin, store, true, opts.canonicalUrl, opts.stripSelectors);
     }
 
     // Stub Framer's editor-bootstrap module: the rewritten JS bundles still
@@ -188,6 +190,7 @@ async function writePages(
   store: AssetStore,
   rewrite: boolean,
   canonicalUrl?: string,
+  stripSelectors?: string[],
 ): Promise<void> {
   // Build page lookup map: normalized URL → root-relative HTML path
   const pageMap = new Map<string, string>();
@@ -213,6 +216,7 @@ async function writePages(
         assetLookup,
         pageLookup,
         canonicalUrl,
+        stripSelectors,
       });
     }
     const rel = pageLocalPath(url);

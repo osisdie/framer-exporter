@@ -101,6 +101,13 @@ export async function rewriteHtml(html: string, ctx: HtmlRewriteContext): Promis
 
   // Apply caller-supplied strip selectors (e.g. to hide a Subscribe form whose
   // backend integration was never configured upstream).
+  //
+  // For SSR HTML we use cheerio's $().remove(). That alone is NOT enough on
+  // a Framer site: after the page loads, Framer's React runtime hydrates and
+  // re-injects components from the bundled JS, putting the elements back. So
+  // we ALSO inject a small MutationObserver-based "runtime stripper" that
+  // re-removes anything matching the selectors after every DOM mutation.
+  // Together they cover both the pre-hydration paint and the post-hydration tree.
   if (ctx.stripSelectors?.length) {
     for (const sel of ctx.stripSelectors) {
       try {
@@ -109,6 +116,10 @@ export async function rewriteHtml(html: string, ctx: HtmlRewriteContext): Promis
         // bad selector — skip silently rather than abort the whole rewrite
       }
     }
+    const runtimeStripper = buildRuntimeStripper(ctx.stripSelectors);
+    // Anonymous <script> — no identifying attribute / comment so the export
+    // doesn't reveal a dependency on framer-exporter to anyone viewing source.
+    $('body').append(`<script>${runtimeStripper}</script>`);
   }
 
   for (const { selector, attr } of URL_ATTRS) {
@@ -189,6 +200,36 @@ function mapUrl(rawUrl: string, ctx: HtmlRewriteContext): string | undefined {
   const absolute = tryParse(rawUrl, ctx.pageUrl)?.toString();
   if (!absolute) return undefined;
   return ctx.assetLookup(absolute);
+}
+
+/**
+ * Build a self-contained MutationObserver script that re-applies the same
+ * strip selectors after every DOM mutation. Handles two selector shapes:
+ *   1. Standard CSS selectors (incl. native `:has()`) → querySelectorAll
+ *   2. jQuery-style `:contains("text")` → custom text-match (browsers don't
+ *      implement `:contains` in CSS)
+ */
+function buildRuntimeStripper(selectors: readonly string[]): string {
+  // Inline the selector list as a JSON-encoded string array (safe escape).
+  const json = JSON.stringify(selectors);
+  return `(function(){
+var sels=${json};
+var containsRe=/^(.+?):contains\\((["'])([^"']+)\\2\\)\\s*$/;
+function strip(){
+  for(var i=0;i<sels.length;i++){
+    var s=sels[i];
+    var m=s.match(containsRe);
+    if(m){
+      var base=m[1],txt=m[3];
+      try{document.querySelectorAll(base).forEach(function(el){if((el.textContent||'').indexOf(txt)>=0)el.remove();});}catch(_){}
+    }else{
+      try{document.querySelectorAll(s).forEach(function(el){el.remove();});}catch(_){}
+    }
+  }
+}
+strip();
+new MutationObserver(strip).observe(document.documentElement,{childList:true,subtree:true});
+})();`;
 }
 
 function mapSrcset(value: string, ctx: HtmlRewriteContext): string {

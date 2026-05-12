@@ -106,7 +106,17 @@ describe('rewriteHtml — canonical URL override', () => {
 });
 
 describe('rewriteHtml — strip selectors', () => {
-  it('removes elements matching each strip selector', async () => {
+  // Important: text assertions are scoped to the document body — the injected
+  // runtime stripper <script> echoes the selector strings (incl. literal text
+  // for `:contains()`), so a naive substring check on `out` would false-positive.
+  const bodyTextOf = async (html: string): Promise<string> => {
+    const cheerio = await import('cheerio');
+    const $ = cheerio.load(html);
+    $('script').remove();
+    return $('body').text();
+  };
+
+  it('removes matching elements from the SSR DOM', async () => {
     const html = `
       <html><body>
         <form><input value="Subscribe"></form>
@@ -117,14 +127,35 @@ describe('rewriteHtml — strip selectors', () => {
       ...baseCtx,
       stripSelectors: ['form:has(input[value="Subscribe"])', 'p:contains("Be the first")'],
     });
-    expect(out).not.toContain('Subscribe');
-    expect(out).not.toContain('Be the first');
-    expect(out).toContain('Keep me');
+    const visibleText = await bodyTextOf(out);
+    expect(visibleText).not.toMatch(/Subscribe/);
+    expect(visibleText).not.toMatch(/Be the first/);
+    expect(visibleText).toMatch(/Keep me/);
+  });
+
+  it('injects an anonymous runtime MutationObserver stripper for post-hydration coverage', async () => {
+    const html = `<html><body><form><input value="Subscribe"></form></body></html>`;
+    const out = await rewriteHtml(html, {
+      ...baseCtx,
+      stripSelectors: ['form:has(input[value="Subscribe"])'],
+    });
+    // Anonymous (no identifying attribute) so it doesn't leak a framer-exporter dependency
+    expect(out).not.toContain('framer-exporter');
+    expect(out).toContain('MutationObserver');
+    // selector list is JSON-encoded inside the script
+    expect(out).toContain('form:has(input[value=\\"Subscribe\\"])');
+  });
+
+  it('omits the runtime stripper entirely when no selectors are supplied', async () => {
+    const html = `<html><body><p>x</p></body></html>`;
+    const out = await rewriteHtml(html, baseCtx);
+    expect(out).not.toContain('MutationObserver');
   });
 
   it('silently ignores invalid selectors instead of aborting', async () => {
     const html = `<p>content</p>`;
     const out = await rewriteHtml(html, { ...baseCtx, stripSelectors: ['!@#$%^'] });
-    expect(out).toContain('content');
+    const visibleText = await bodyTextOf(out);
+    expect(visibleText).toContain('content');
   });
 });

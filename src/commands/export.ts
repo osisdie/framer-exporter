@@ -26,6 +26,8 @@ export interface ExportCommandOptions {
   canonicalUrl?: string;
   /** Extra CSS selectors removed from every page during HTML rewrite */
   stripSelectors?: string[];
+  /** If set, transform the subscribe form into a redirect link instead of stripping it */
+  subscribeRedirect?: { url: string; text?: string };
 }
 
 export async function runExport(opts: ExportCommandOptions): Promise<void> {
@@ -88,12 +90,12 @@ export async function runExport(opts: ExportCommandOptions): Promise<void> {
 
     if (opts.keepCdn) {
       await writeAssets(outDir, store, /* rewrite */ false, new Set());
-      await writePages(outDir, crawlResult.pages, crawlResult.origin, store, /* rewrite */ false, opts.canonicalUrl, opts.stripSelectors);
+      await writePages(outDir, crawlResult.pages, crawlResult.origin, store, /* rewrite */ false, opts.canonicalUrl, opts.stripSelectors, opts.subscribeRedirect);
     } else {
       const hosts = collectHosts(store);
       const jsReplacements = buildJsReplacements(hosts);
       await writeAssets(outDir, store, true, hosts, jsReplacements);
-      await writePages(outDir, crawlResult.pages, crawlResult.origin, store, true, opts.canonicalUrl, opts.stripSelectors);
+      await writePages(outDir, crawlResult.pages, crawlResult.origin, store, true, opts.canonicalUrl, opts.stripSelectors, opts.subscribeRedirect);
     }
 
     // Stub Framer's editor-bootstrap module: the rewritten JS bundles still
@@ -191,6 +193,7 @@ async function writePages(
   rewrite: boolean,
   canonicalUrl?: string,
   stripSelectors?: string[],
+  subscribeRedirect?: { url: string; text?: string },
 ): Promise<void> {
   // Build page lookup map: normalized URL → root-relative HTML path
   const pageMap = new Map<string, string>();
@@ -217,6 +220,7 @@ async function writePages(
         pageLookup,
         canonicalUrl,
         stripSelectors,
+        subscribeRedirect,
       });
     }
     const rel = pageLocalPath(url);

@@ -25,6 +25,12 @@ export interface HtmlRewriteContext {
    * Cheerio supports jQuery-style :has() and :contains() pseudo-classes.
    */
   stripSelectors?: string[];
+  /**
+   * If set, the subscribe form (form:has(input[value="Subscribe"])) is kept
+   * visible but transformed: the button label changes to `text` and clicking
+   * opens `url` in a new tab instead of submitting the form.
+   */
+  subscribeRedirect?: { url: string; text?: string };
 }
 
 const URL_ATTRS: Array<{ selector: string; attr: string }> = [
@@ -120,6 +126,14 @@ export async function rewriteHtml(html: string, ctx: HtmlRewriteContext): Promis
     // Anonymous <script> — no identifying attribute / comment so the export
     // doesn't reveal a dependency on framer-exporter to anyone viewing source.
     $('body').append(`<script>${runtimeStripper}</script>`);
+  }
+
+  if (ctx.subscribeRedirect) {
+    const { url, text } = ctx.subscribeRedirect;
+    // Bake the hide rule into the static HTML so it is present from first paint
+    // and never removed by Framer's init code (which clears JS-injected head styles).
+    $('head').append('<style>form:has(input[value="Subscribe"]){display:none!important}</style>');
+    $('body').append(`<script>${buildSubscribeRedirector(url, text ?? 'Subscribe')}</script>`);
   }
 
   for (const { selector, attr } of URL_ATTRS) {
@@ -229,6 +243,59 @@ function strip(){
 }
 strip();
 new MutationObserver(strip).observe(document.documentElement,{childList:true,subtree:true});
+})();`;
+}
+
+/**
+ * Build a self-contained script that transforms the Framer subscribe form into
+ * a redirect button. Uses MutationObserver so it survives React hydration.
+ * A data attribute guards against duplicate event listeners on re-runs.
+ */
+function buildSubscribeRedirector(url: string, text: string): string {
+  const jsonUrl = JSON.stringify(url);
+  const jsonText = JSON.stringify(text);
+  // The form is hidden by a <style> baked into the static HTML by rewriteHtml().
+  // This script only handles inserting the <a> redirect link after React hydration.
+  return `(function(){
+var url=${jsonUrl},text=${jsonText};
+function transform(){
+  document.querySelectorAll('form').forEach(function(form){
+    var btn=form.querySelector('input[value="Subscribe"],input[type="submit"],button[type="submit"]');
+    if(!btn)return;
+    var p=form.parentNode;
+    if(!p||p.querySelector('[data-sub-link]'))return;
+    var cs=window.getComputedStyle(btn);
+    var a=document.createElement('a');
+    a.setAttribute('data-sub-link','1');
+    a.textContent=text;
+    a.href=url;
+    a.target='_blank';
+    a.rel='noopener noreferrer';
+    a.style.display='inline-flex';
+    a.style.alignItems='center';
+    a.style.justifyContent='center';
+    a.style.textDecoration='none';
+    a.style.cursor='pointer';
+    a.style.boxSizing='border-box';
+    a.style.whiteSpace='nowrap';
+    a.style.padding=cs.padding||'12px';
+    a.style.background=cs.background;
+    a.style.backgroundColor=cs.backgroundColor;
+    a.style.color=cs.color;
+    a.style.borderRadius=cs.borderRadius;
+    a.style.fontSize=cs.fontSize;
+    a.style.fontWeight=cs.fontWeight;
+    a.style.minWidth=cs.minWidth;
+    a.style.height=cs.height;
+    a.style.border=cs.border;
+    p.insertBefore(a,form);
+  });
+}
+transform();
+// Run after React hydration/client-render settles (error #418 can delay to ~2s).
+[200,500,1000,2000,3000,5000].forEach(function(ms){setTimeout(transform,ms);});
+window.addEventListener('load',function(){setTimeout(transform,500);setTimeout(transform,1500);});
+new MutationObserver(transform).observe(document.documentElement,{childList:true,subtree:true});
 })();`;
 }
 

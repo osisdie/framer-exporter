@@ -159,3 +159,33 @@ describe('rewriteHtml — strip selectors', () => {
     expect(visibleText).toContain('content');
   });
 });
+
+describe('rewriteHtml — subscribeRedirect', () => {
+  it('injects a MutationObserver redirector script with the given url and text', async () => {
+    const html = `<html><body><form><input value="Subscribe"><button type="submit">Go</button></form></body></html>`;
+    const out = await rewriteHtml(html, {
+      ...baseCtx,
+      subscribeRedirect: { url: 'https://example.com', text: 'Try Now' },
+    });
+    expect(out).toContain('MutationObserver');
+    expect(out).toContain('"https://example.com"');
+    expect(out).toContain('"Try Now"');
+    expect(out).toContain('data-sub-link');
+    expect(out).toContain("a.target='_blank'");
+  });
+
+  it('defaults text to "Subscribe" when text is omitted', async () => {
+    const html = `<html><body></body></html>`;
+    const out = await rewriteHtml(html, {
+      ...baseCtx,
+      subscribeRedirect: { url: 'https://example.com' },
+    });
+    expect(out).toContain('"Subscribe"');
+  });
+
+  it('does not inject the redirector when subscribeRedirect is unset', async () => {
+    const html = `<html><body><form><input value="Subscribe"></form></body></html>`;
+    const out = await rewriteHtml(html, baseCtx);
+    expect(out).not.toContain('data-sub-link');
+  });
+});

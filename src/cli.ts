@@ -33,9 +33,12 @@ program
     (value: string, prev: string[] = []) => prev.concat(value),
     [] as string[],
   )
+  .option('--subscribe-url <url>', 'Keep the subscribe form but redirect clicks to this URL (opens in a new tab) instead of submitting')
+  .option('--subscribe-text <text>', 'Label to show on the subscribe button when --subscribe-url is set', 'Subscribe')
   .option('--user-data-dir <dir>', 'Persistent browser profile dir', './.browser-data')
   .action(async (url: string, options: Record<string, unknown>) => {
     try {
+      const subscribeUrl = options.subscribeUrl as string | undefined;
       await runExport({
         url,
         outDir: options.out as string,
@@ -48,6 +51,9 @@ program
         userDataDir: path.resolve(options.userDataDir as string),
         canonicalUrl: options.canonicalUrl as string | undefined,
         stripSelectors: options.stripSelector as string[] | undefined,
+        subscribeRedirect: subscribeUrl
+          ? { url: subscribeUrl, text: options.subscribeText as string }
+          : undefined,
       });
     } catch (err) {
       logger.error({ err: (err as Error).message, stack: (err as Error).stack }, 'export-failed');
